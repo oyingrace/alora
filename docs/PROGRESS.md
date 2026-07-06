@@ -85,10 +85,29 @@ Tracked against `BUILD_PLAN.md` §7. Update at the end of each phase.
 
 ## Phase 4 — Autonomy + benchmark
 
-- [ ] Reorder flow: cadence detection → propose → approvals → auto+notify promotion
-- [ ] `create_reorder_proposal` /chat tool (see Phase 2 note above)
-- [ ] Benchmark harness: 3 personas × 20 sessions, baseline vs Memora
-- [ ] Benchmark chart PNG
+- [x] Reorder flow: cadence detection (`detect_reorder_candidates`) → propose →
+      approvals/rejections tracked per shopper → promotes ask-first to
+      auto+notify after 3 approvals → one-click revoke back to recommend-only
+      (`app/services/autonomy.py`, `/autonomy` endpoints)
+- [x] `create_reorder_proposal` /chat tool: declines for anonymous shoppers,
+      asks for approval at ask-first, auto-reorders (writing a real
+      `KIND_REORDER` episode) at auto+notify
+- [x] Autonomy status + one-click "turn off" revoke button in the snippet's
+      Memory Inspector
+- [x] Benchmark harness (`bench/`): 3 scripted personas (Budget Shopper, Style
+      Shifter, Gift Buyer) × 20 sessions each, run through both a baseline arm
+      (no episodes written at all — true "similarity-only, no memory") and a
+      Memora arm (one persistent shopper_id, consolidation runs every
+      session). Metrics: qwen-max-judged rec relevance, tokens/session
+      (`qwen.get_token_usage()`), and sessions-to-recover after Style
+      Shifter's scripted preference correction. Drives apps/api's services
+      in-process — no HTTP, no separate server
+- [x] `bench/fake_qwen.py`: deterministic offline stand-in for Qwen calls
+      (same seam apps/api's own tests mock), so the harness runs and is
+      verifiable without a QWEN_API_KEY; `run_benchmark.py` only uses it when
+      no real key is configured or `--fake` is passed
+- [x] `bench/report.py` writes `bench/out/report.md` + `bench/out/chart.png`
+      (matplotlib, one subplot per persona)
 
 ## Phase 5 — Ship
 

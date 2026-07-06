@@ -18,6 +18,7 @@ KIND_ADD_TO_CART = "add_to_cart"
 KIND_PURCHASE = "purchase"
 KIND_CHAT = "chat"
 KIND_CORRECTION = "correction"
+KIND_REORDER = "reorder"  # an autonomy-driven repurchase, distinct from a manual purchase
 
 # episodes.intent values
 INTENT_SELF = "self"

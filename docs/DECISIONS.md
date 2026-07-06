@@ -92,3 +92,25 @@ One line per notable decision, newest last. Fuel for the blog-post writeup.
   preflight), and `events.ts` never sent `shopper_id` in its POST body despite
   the backend requiring it. Neither surfaced in Python or TypeScript unit
   tests, which only ever called same-origin or mocked the network.
+- Graduated autonomy (`app/services/autonomy.py`) reads purchase/reorder
+  episodes directly with plain SQL rather than through the MCP `recall` tool —
+  architecture rule 1 governs the memory *table* (beliefs/episodes as shopper
+  memory), and the `autonomy` table is a normal apps/api table like the
+  product catalog, not memory. The reorder episode it writes on approval,
+  though, is real episodic memory and does go through `write_episode`.
+- The benchmark harness (`bench/`) drives apps/api's actual service functions
+  in-process (no HTTP, no separate server process) so it has direct access to
+  `qwen.get_token_usage()` for the tokens-per-session metric, and calls
+  `consolidate_shopper` once at the end of every scripted session instead of
+  relying on `/events`' event-count cadence — deterministic and easier to
+  reason about for a benchmark than a fire-and-forget background task. The
+  "baseline" arm skips writing episodes entirely rather than just using a
+  fresh shopper_id per session: a fresh id with real memory turned on would
+  still get one session's worth of belief-informed reranking, which isn't
+  "similarity-only, no memory."
+- `bench/fake_qwen.py` patches `app.services.qwen.chat`/`.embed` (the same
+  seam every apps/api test mocks) with a deterministic keyword-overlap shim so
+  the harness is runnable and its mechanics verifiable without a real
+  QWEN_API_KEY or spending the token budget on every dev iteration.
+  `run_benchmark.py` only reaches for it when no key is configured (or
+  `--fake` is passed); real submission numbers come from a real run.

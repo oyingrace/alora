@@ -39,6 +39,14 @@ export interface MemoryResponse {
   audit: AuditItem[];
 }
 
+export interface AutonomyStatus {
+  action_class: string;
+  level: number;
+  approvals: number;
+  rejections: number;
+  promoted: boolean;
+}
+
 async function apiFetch<T>(
   config: MemoraConfig,
   path: string,
@@ -94,4 +102,19 @@ export function deleteBelief(
 ): Promise<void> {
   const params = new URLSearchParams({ reason });
   return apiFetch(config, `/memory/${beliefId}?${params.toString()}`, { method: "DELETE" });
+}
+
+export function getAutonomyStatus(
+  config: MemoraConfig,
+  shopperId: string
+): Promise<AutonomyStatus> {
+  const params = new URLSearchParams({ shopper_id: shopperId });
+  return apiFetch(config, `/autonomy?${params.toString()}`);
+}
+
+export function revokeAutonomy(config: MemoraConfig, shopperId: string): Promise<AutonomyStatus> {
+  return apiFetch(config, "/autonomy/revoke", {
+    method: "POST",
+    body: JSON.stringify({ shopper_id: shopperId }),
+  });
 }

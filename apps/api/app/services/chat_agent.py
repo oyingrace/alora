@@ -1,18 +1,17 @@
-"""The /chat agent runtime: a qwen-max tool loop over memory (via the MCP client)
-and the product catalog. Structured tool calls, bounded iterations, and an honest
-"memory offline" reply if Qwen goes down mid-conversation — never a 500
-(CLAUDE.md architecture rule 4).
-
-`create_reorder_proposal` (BUILD_PLAN.md §4) is deliberately not a tool here yet —
-it depends on the `autonomy` cadence-detection logic that's Phase 4 scope.
+"""The /chat agent runtime: a qwen-max tool loop over memory (via the MCP client),
+the product catalog, and graduated reorder autonomy. Structured tool calls, bounded
+iterations, and an honest "memory offline" reply if Qwen goes down mid-conversation
+— never a 500 (CLAUDE.md architecture rule 4).
 """
 
 import json
 import logging
 
 from app.core.config import get_settings
+from app.models.autonomy import ACTION_REORDER, LEVEL_AUTO_NOTIFY
 from app.models.episode import KIND_CHAT
 from app.services import qwen, session_store
+from app.services.autonomy import execute_auto_reorder, get_autonomy_status
 from app.services.catalog import search_products
 from app.services.embeddings import embed_cached
 from app.services.memory_client import MemoryUnavailableError, memory_client
@@ -26,8 +25,11 @@ _SYSTEM_PROMPT = (
     "You are Memora, a shopping assistant with a transparent, editable memory of this "
     "shopper's preferences. Use the `recall` tool to check what you remember before "
     "answering questions about their preferences, and `catalog_search` to find products. "
-    "Don't invent products or preferences you haven't looked up. Keep replies brief and "
-    "conversational."
+    "If the shopper regularly repurchases something, use `create_reorder_proposal` — it "
+    "tells you whether to ask for approval first or whether it already auto-reordered, so "
+    "phrase your reply accordingly (never claim you reordered something unless the tool "
+    "result says auto_reordered=true). Don't invent products or preferences you haven't "
+    "looked up. Keep replies brief and conversational."
 )
 
 _TOOLS = [
@@ -64,6 +66,24 @@ _TOOLS = [
                     "max_price": {"type": "number"},
                 },
                 "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_reorder_proposal",
+            "description": (
+                "Propose reordering a consumable product this shopper buys on a regular "
+                "cadence. Returns whether it needs the shopper's approval or was already "
+                "auto-reordered, based on their earned autonomy level."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "product_id": {"type": "string", "description": "the product to reorder"}
+                },
+                "required": ["product_id"],
             },
         },
     },
@@ -136,6 +156,30 @@ async def _run_catalog_search(
     }
 
 
+async def _run_create_reorder_proposal(
+    store_id: str, shopper_id: str, persist: bool, product_id: str
+) -> dict:
+    if not persist:
+        return {
+            "error": (
+                "reorder proposals need to remember this shopper across visits, and "
+                "they're browsing anonymously right now"
+            )
+        }
+
+    status = await get_autonomy_status(shopper_id, ACTION_REORDER)
+    if status.level >= LEVEL_AUTO_NOTIFY:
+        await execute_auto_reorder(store_id, shopper_id, product_id)
+        return {"auto_reordered": True, "product_id": product_id}
+
+    return {
+        "auto_reordered": False,
+        "needs_approval": True,
+        "product_id": product_id,
+        "level": status.level,
+    }
+
+
 async def _execute_tool_call(
     store_id: str, shopper_id: str, session_id: str, persist: bool, tool_call
 ) -> str:
@@ -152,6 +196,10 @@ async def _execute_tool_call(
     elif name == "catalog_search":
         result = await _run_catalog_search(
             store_id, args.get("query", ""), args.get("category"), args.get("max_price")
+        )
+    elif name == "create_reorder_proposal":
+        result = await _run_create_reorder_proposal(
+            store_id, shopper_id, persist, args.get("product_id", "")
         )
     else:
         result = {"error": f"unknown tool {name}"}
@@ -217,7 +265,9 @@ async def run_chat(
     if degraded:
         return _DEGRADED_REPLY, True
     if reply is None:
-        logger.warning("chat tool loop exhausted %d iterations without a final reply", MAX_TOOL_ITERATIONS)
+        logger.warning(
+            "chat tool loop exhausted %d iterations without a final reply", MAX_TOOL_ITERATIONS
+        )
         return _FALLBACK_REPLY, False
 
     if not persist:

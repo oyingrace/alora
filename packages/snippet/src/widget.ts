@@ -1,7 +1,7 @@
 import type { MemoraConfig } from "./config";
-import { deleteBelief, getMemory, getRecs, sendChat } from "./api";
+import { deleteBelief, getAutonomyStatus, getMemory, getRecs, revokeAutonomy, sendChat } from "./api";
 import { getConsent, getSessionId, getShopperId, isPersisting, setConsent } from "./identity";
-import type { AuditItem, BeliefItem } from "./api";
+import type { AuditItem, AutonomyStatus, BeliefItem } from "./api";
 
 type Tab = "chat" | "recs" | "inspector";
 
@@ -60,6 +60,14 @@ function injectStyles(): void {
     #memora-widget-root [data-memora-refresh] {
       border: 1px solid #d1d5db; background: #fff; border-radius: 6px; padding: 4px 10px; cursor: pointer;
       margin-bottom: 8px; font-size: 12px;
+    }
+    #memora-widget-root [data-memora-autonomy] {
+      background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 8px; margin-bottom: 10px;
+      font-size: 12px; color: #14532d;
+    }
+    #memora-widget-root [data-memora-autonomy-revoke] {
+      border: none; background: #fff; color: #b91c1c; border: 1px solid #fecaca; border-radius: 6px;
+      padding: 3px 8px; cursor: pointer; margin-top: 6px; font-size: 11px;
     }
   `;
   document.head.appendChild(style);
@@ -309,7 +317,17 @@ export function mountWidget(config: MemoraConfig): void {
   }
 
   function renderInspectorTab(content: HTMLElement): void {
+    const autonomySection = document.createElement("div");
     const list = document.createElement("div");
+
+    const loadAutonomy = async () => {
+      try {
+        const status = await getAutonomyStatus(config, getShopperId());
+        renderAutonomyStatus(autonomySection, status, loadAutonomy);
+      } catch {
+        autonomySection.replaceChildren();
+      }
+    };
 
     const load = async () => {
       list.replaceChildren(loadingNode());
@@ -325,8 +343,50 @@ export function mountWidget(config: MemoraConfig): void {
       }
     };
 
-    content.replaceChildren(list);
+    content.replaceChildren(autonomySection, list);
+    void loadAutonomy();
     void load();
+  }
+
+  function renderAutonomyStatus(
+    container: HTMLElement,
+    status: AutonomyStatus,
+    reload: () => void
+  ): void {
+    container.replaceChildren();
+    // Nothing to show until there's at least one reorder decision on record.
+    if (status.approvals === 0 && status.rejections === 0) return;
+
+    const box = document.createElement("div");
+    box.setAttribute("data-memora-autonomy", "");
+
+    const label = document.createElement("div");
+    const levelLabel =
+      status.level >= 2
+        ? "Auto-reorder is on — I'll reorder and notify you"
+        : status.level === 1
+          ? "I'll ask before reordering"
+          : "Reorder autonomy is off";
+    label.textContent = `${levelLabel} · ${status.approvals} approved, ${status.rejections} declined`;
+    box.appendChild(label);
+
+    if (status.level > 0) {
+      const revokeBtn = document.createElement("button");
+      revokeBtn.setAttribute("data-memora-autonomy-revoke", "");
+      revokeBtn.textContent = "Turn off";
+      revokeBtn.onclick = async () => {
+        revokeBtn.disabled = true;
+        try {
+          await revokeAutonomy(config, getShopperId());
+          reload();
+        } catch {
+          revokeBtn.disabled = false;
+        }
+      };
+      box.appendChild(revokeBtn);
+    }
+
+    container.appendChild(box);
   }
 
   function renderBeliefs(

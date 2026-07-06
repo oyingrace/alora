@@ -15,7 +15,7 @@ import time
 from functools import lru_cache
 from typing import Any
 
-from openai import AsyncOpenAI, APIConnectionError, APIStatusError, APITimeoutError
+from openai import APIConnectionError, APIStatusError, APITimeoutError, AsyncOpenAI
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -30,9 +30,21 @@ logger = logging.getLogger("memora.qwen")
 _RETRYABLE = (APIConnectionError, APITimeoutError, APIStatusError)
 _DEFAULT_TIMEOUT_S = 20.0
 
+_token_usage_log: list[dict[str, Any]] = []
+
 
 class QwenUnavailableError(RuntimeError):
     """Raised after retries are exhausted. Callers must degrade gracefully, never 500."""
+
+
+def reset_token_usage() -> None:
+    """Clear the token usage log — call at the start of each benchmark session."""
+    _token_usage_log.clear()
+
+
+def get_token_usage() -> list[dict[str, Any]]:
+    """Return a copy of every call logged since the last reset (see reset_token_usage)."""
+    return list(_token_usage_log)
 
 
 @lru_cache
@@ -49,6 +61,15 @@ def _log_usage(call: str, model: str, usage: Any, elapsed_s: float) -> None:
     prompt_tokens = getattr(usage, "prompt_tokens", None)
     completion_tokens = getattr(usage, "completion_tokens", None)
     total_tokens = getattr(usage, "total_tokens", None)
+    _token_usage_log.append(
+        {
+            "call": call,
+            "model": model,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
+        }
+    )
     logger.info(
         "qwen call=%s model=%s prompt_tokens=%s completion_tokens=%s total_tokens=%s "
         "elapsed_ms=%d",
