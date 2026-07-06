@@ -23,6 +23,7 @@ apps/web/out/
 
 # Data
 *.log
+*.rdb
 bench/out/*.png
 bench/out/*.md
 !bench/out/.gitkeep

@@ -26,6 +26,7 @@ class RecallResult(BaseModel):
 
 class WriteEpisodeResult(BaseModel):
     episode_id: uuid.UUID
+    anomalous: bool = False
 
 
 class ReviseBeliefResult(BaseModel):

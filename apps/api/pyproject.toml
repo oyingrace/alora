@@ -17,6 +17,10 @@ dependencies = [
     "tenacity>=8.3",
     "arq>=0.26",
     "httpx>=0.27",
+    "mcp[cli]>=1.6",
+    # memora-mcp-memory (packages/mcp-memory) must also be installed — see
+    # requirements.txt's editable install; a relative path dependency here isn't
+    # portable across pyproject tooling, so requirements.txt is the source of truth.
 ]
 
 [project.optional-dependencies]
@@ -35,4 +39,6 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]

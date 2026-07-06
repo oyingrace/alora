@@ -1,4 +1,5 @@
 import type { MemoraConfig } from "./config";
+import { getSessionId, getShopperId, isPersisting } from "./identity";
 
 export type EventKind =
   | "search"
@@ -14,24 +15,15 @@ export interface MemoraEvent {
   payload: Record<string, unknown>;
 }
 
-const SESSION_STORAGE_KEY = "memora_session_id";
-
-function getSessionId(): string {
-  let id = sessionStorage.getItem(SESSION_STORAGE_KEY);
-  if (!id) {
-    id = crypto.randomUUID();
-    sessionStorage.setItem(SESSION_STORAGE_KEY, id);
-  }
-  return id;
-}
-
 /** Posts a single event to the first-party /events ingest endpoint. Fire-and-forget. */
 export function sendEvent(config: MemoraConfig, event: MemoraEvent): void {
   const body = JSON.stringify({
     store_id: config.storeId,
+    shopper_id: getShopperId(),
     session_id: getSessionId(),
     kind: event.kind,
     payload: event.payload,
+    persist: isPersisting(),
   });
 
   const url = `${config.apiBaseUrl}/events`;
