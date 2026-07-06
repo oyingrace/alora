@@ -70,3 +70,25 @@ One line per notable decision, newest last. Fuel for the blog-post writeup.
   Postgres and deleting later — CLAUDE.md rule 5 requires persistence to be
   opt-in, not opt-out-after-the-fact, and skipping Qwen entirely for these events
   also avoids paying for summarization of data that expires with the session.
+- The widget stays vanilla TS / zero-dependency for the chat/recs/Inspector panel
+  too, not just the event-capture shell — the "one script tag, works on any
+  storefront" pitch breaks if the panel secretly needs React. `identity.ts`
+  centralizes session/shopper id + consent so `events.ts` and `widget.ts` can't
+  drift into two different notions of who the shopper is.
+- Built `apps/web`'s product pages against the same 8 products as
+  `scripts/seed_catalog.py` (duplicated, not fetched from the API) — the
+  snippet's catalog reader is supposed to parse schema.org JSON-LD that the
+  storefront itself rendered, so the storefront needs to own product data, not
+  proxy it from the backend.
+- `packages/snippet`'s build output (`dist/agent.js`) is committed to
+  `apps/web/public/agent.js` rather than built as part of apps/web's Docker
+  image — apps/web's Dockerfile builds from its own directory, and teaching it
+  about a sibling package (like apps/api's Dockerfile now does for mcp-memory)
+  felt like more complexity than a 4KB checked-in file justifies. `make snippet`
+  rebuilds and copies it.
+- Found two real bugs only by testing the widget in an actual browser rather
+  than trusting unit tests alone: apps/api had no CORS middleware at all (every
+  cross-origin request — which is every real embed, by design — failed
+  preflight), and `events.ts` never sent `shopper_id` in its POST body despite
+  the backend requiring it. Neither surfaced in Python or TypeScript unit
+  tests, which only ever called same-origin or mocked the network.

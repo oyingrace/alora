@@ -52,13 +52,20 @@ Tracked against `BUILD_PLAN.md` §7. Update at the end of each phase.
 
 ## Phase 3 — Storefront + snippet + Inspector
 
-- [x] Snippet scaffold: catalog reader, event capture, widget shell + consent banner
-      (1.37KB gzipped, zero runtime deps)
-- [x] Next.js app router skeleton
+- [x] Snippet: catalog reader, event capture, consent banner, and now a full
+      floating panel — chat tab, "For you" recs tab, Memory Inspector tab
+      (view/correct-ready/delete + audit log). Still zero runtime deps, 3.84KB
+      gzipped (well under the 50KB budget)
+- [x] `identity.ts`: single source of truth for session/shopper id + consent —
+      `shopper_id` is only ever persistent (localStorage) once opted in,
+      otherwise it's the ephemeral session id, so nothing outlives the session
+- [x] Next.js storefront: 8 seeded products (mirroring the backend seed),
+      listing page + detail pages with schema.org JSON-LD and a
+      `data-memora-add-to-cart` button for the snippet's event capture; the
+      snippet script tag is wired into the root layout
 - [x] Product catalog schema + sync endpoint (`app/models/product.py`,
       `POST /catalog`) — 8-product seed script (`scripts/seed_catalog.py`), real
-      storefront JSON-LD wiring and qwen-vl-max tagging over real images still
-      pending (needs a live storefront + QWEN_API_KEY)
+      qwen-vl-max tagging over real images still pending (needs QWEN_API_KEY)
 - [x] `/memory` endpoint (Inspector backend): GET lists every belief (including
       decaying/deprecated) + full audit trail; PATCH corrects a belief; DELETE
       removes one, audited distinctly as `user_delete` vs system `deprecate`
@@ -69,8 +76,12 @@ Tracked against `BUILD_PLAN.md` §7. Update at the end of each phase.
       and `/chat` take a `persist` flag from the consent banner; declining skips
       Postgres and qwen entirely, landing in a TTL'd Redis session log instead
       (`app/services/session_store.py`)
-- [ ] Chat panel + recs rail + Memory Inspector UI (frontend still pending —
-      backend endpoints above are ready for it)
+- [x] Verified end-to-end in a real browser (Playwright): consent banner →
+      launcher → panel → Inspector shows a seeded belief → delete → status
+      flips to `deprecated`, audit row appears, delete button disappears. Found
+      and fixed two real bugs this way: missing CORS middleware (every
+      cross-origin widget request was failing preflight) and the snippet never
+      sending `shopper_id` to `/events` at all
 
 ## Phase 4 — Autonomy + benchmark
 

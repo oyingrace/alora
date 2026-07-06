@@ -3,6 +3,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
 from app.routers import catalog, chat, events, health, memory, recs
@@ -37,6 +38,16 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Memora API", version="0.1.0", lifespan=lifespan)
+
+# The snippet is a script tag dropped onto arbitrary third-party storefronts, so
+# its origin can't be known in advance — allow any origin. No cookies/credentials
+# are used (shopper/session ids travel in the request body), so a wildcard is safe.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(health.router)
 app.include_router(events.router)
