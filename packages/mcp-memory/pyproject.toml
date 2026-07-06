@@ -1,0 +1,23 @@
+[project]
+name = "memora-mcp-memory"
+version = "0.1.0"
+description = "MCP server exposing Memora's memory layer (recall/write_episode/revise_belief/forget)"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp[cli]>=1.6",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.29",
+    "pgvector>=0.3",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
