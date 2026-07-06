@@ -1,0 +1,15 @@
+{
+  "name": "@memora/snippet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vanilla TS storefront widget — catalog reader, event capture, chat/recs/inspector UI. Zero runtime dependencies.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "vite": "^5.3.1"
+  }
+}

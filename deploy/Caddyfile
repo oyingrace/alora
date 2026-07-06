@@ -1,0 +1,15 @@
+{
+	# Set DEMO_DOMAIN env var on the ECS host, or edit this file post-provision.
+	email admin@example.com
+}
+
+{$DEMO_DOMAIN:localhost} {
+	handle /api/* {
+		uri strip_prefix /api
+		reverse_proxy api:8000
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+}
