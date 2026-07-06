@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     # Memory
     recall_budget_tokens: int = 1500
     consolidation_every_n_events: int = 15
+    decay_tick_interval_seconds: int = 3600
 
 
 @lru_cache

@@ -19,9 +19,25 @@ STATUS_ACTIVE = "active"
 STATUS_DECAYING = "decaying"
 STATUS_DEPRECATED = "deprecated"
 
+# confidence thresholds for status transitions (BUILD_PLAN.md §5.2 decay step)
+DECAYING_THRESHOLD = 0.3
+DEPRECATED_THRESHOLD = 0.15
+
+# per-category decay half-life, in days (BUILD_PLAN.md §5.1)
+DECAY_HALF_LIFE_DAYS: dict[str, int] = {
+    "budget": 30,
+    "style": 90,
+    "size": 365,
+    "brand": 90,
+    "cadence": 60,
+    "constraint": 180,
+}
+DEFAULT_HALF_LIFE_DAYS = 90
+
 ACTION_CREATE = "create"
 ACTION_REINFORCE = "reinforce"
 ACTION_REVISE = "revise"
+ACTION_DECAY = "decay"
 ACTION_DEPRECATE = "deprecate"
 ACTION_USER_DELETE = "user_delete"
 
