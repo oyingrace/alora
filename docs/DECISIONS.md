@@ -37,3 +37,14 @@ One line per notable decision, newest last. Fuel for the blog-post writeup.
 - apps/api's MCP client spawns `python -m mcp_memory.server` as a subprocess over
   stdio, so its Docker build context moved from `apps/api/` to the repo root (the
   image needs `packages/mcp-memory` installed alongside its own dependencies).
+- The product catalog (`app/models/product.py`) is a normal apps/api table with
+  direct DB access, not routed through the MCP tools — architecture rule 1 is about
+  the memory tables (episodes/beliefs), and products aren't memory.
+- `/chat`'s tool loop only exposes `recall` and `catalog_search`; `create_reorder_proposal`
+  is deliberately left out until Phase 4, since a real implementation needs the
+  cadence-detection logic that belongs to the autonomy feature, not a stub that
+  would just be replaced later.
+- `qwen.py` gained `chat_message()` alongside `chat()` — same retry/logging wrapper,
+  but returns the raw response message (content + tool_calls) instead of just text,
+  so the chat tool loop can drive multi-turn tool calls without a second Qwen client
+  or a breaking change to `chat()`'s existing callers (intent, consolidation).

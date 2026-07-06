@@ -37,24 +37,34 @@ Tracked against `BUILD_PLAN.md` §7. Update at the end of each phase.
       back to confidence/recency when no query embedding is given)
 - [x] MCP client wired into apps/api (persistent stdio session via FastAPI lifespan)
       — the sole path apps/api uses to touch memory
-- [ ] `/chat` agent runtime: qwen-max tool loop via MCP client
-- [ ] `catalog_search` and `create_reorder_proposal` tools
+- [x] `/chat` agent runtime (`app/services/chat_agent.py`): qwen-max tool loop
+      (`recall`, `catalog_search`), bounded iterations, honest "memory offline"
+      degradation, records the exchange as a `chat` episode on success
+- [x] `catalog_search` tool + backing `products` table (migration 0002), embedded
+      and cosine-ranked; `POST /catalog` sync endpoint with qwen-vl-max visual
+      tagging hook (best-effort, cached by image URL)
+- [ ] `create_reorder_proposal` tool — deferred to Phase 4, depends on the
+      `autonomy` cadence-detection logic that belongs there
 - [x] Graceful degradation: Qwen outages caught at every call site (annotation,
-      embedding, consolidation) and fall back rather than 500; `/recs`/`/chat`
-      honest-error paths still pending (no such endpoints yet)
+      embedding, consolidation, chat) and fall back rather than 500 — `/chat`
+      returns an honest "memory offline" message; `/recs` doesn't exist yet
 
 ## Phase 3 — Storefront + snippet + Inspector
 
 - [x] Snippet scaffold: catalog reader, event capture, widget shell + consent banner
       (1.37KB gzipped, zero runtime deps)
 - [x] Next.js app router skeleton
-- [ ] Seeded catalog (~24 products, schema.org JSON-LD, qwen-vl-max visual tags)
+- [x] Product catalog schema + sync endpoint (`app/models/product.py`,
+      `POST /catalog`) — 8-product seed script (`scripts/seed_catalog.py`), real
+      storefront JSON-LD wiring and qwen-vl-max tagging over real images still
+      pending (needs a live storefront + QWEN_API_KEY)
 - [ ] Chat panel + recs rail + Memory Inspector UI
 - [ ] Anonymous session memory in Redis with TTL; opt-in persistence
 
 ## Phase 4 — Autonomy + benchmark
 
 - [ ] Reorder flow: cadence detection → propose → approvals → auto+notify promotion
+- [ ] `create_reorder_proposal` /chat tool (see Phase 2 note above)
 - [ ] Benchmark harness: 3 personas × 20 sessions, baseline vs Memora
 - [ ] Benchmark chart PNG
 

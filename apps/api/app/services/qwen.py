@@ -97,6 +97,30 @@ async def chat(
     return response.choices[0].message.content or ""
 
 
+async def chat_message(
+    messages: list[dict],
+    *,
+    model: str | None = None,
+    reasoning: bool = False,
+    **kwargs: Any,
+):
+    """Like `chat()` but returns the raw response message (content + tool_calls)
+    instead of just the text — for callers driving a tool-calling loop (/chat).
+    """
+    settings = get_settings()
+    resolved_model = model or (settings.model_reasoning if reasoning else settings.model_fast)
+
+    start = time.monotonic()
+    try:
+        response = await _chat(model=resolved_model, messages=messages, **kwargs)
+    except _RETRYABLE as exc:
+        logger.error("qwen chat failed after retries: model=%s error=%s", resolved_model, exc)
+        raise QwenUnavailableError(str(exc)) from exc
+
+    _log_usage("chat_message", resolved_model, response.usage, time.monotonic() - start)
+    return response.choices[0].message
+
+
 @retry(
     retry=retry_if_exception_type(_RETRYABLE),
     stop=stop_after_attempt(3),

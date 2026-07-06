@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.core.config import get_settings
-from app.routers import events, health
+from app.routers import catalog, chat, events, health
 from app.services.memory_client import memory_client
 from app.workers.decay import run_decay_tick
 
@@ -40,3 +40,5 @@ app = FastAPI(title="Memora API", version="0.1.0", lifespan=lifespan)
 
 app.include_router(health.router)
 app.include_router(events.router)
+app.include_router(catalog.router)
+app.include_router(chat.router)
