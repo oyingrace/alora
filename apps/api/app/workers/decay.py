@@ -17,7 +17,7 @@ from sqlalchemy import select
 from app import db
 from app.models import Belief
 from app.models.belief import STATUS_DEPRECATED
-from app.services.memory_client import MemoryUnavailableError, memory_client
+from app.services.memory_client import MemoryToolError, MemoryUnavailableError, memory_client
 
 logger = logging.getLogger("memora.decay")
 
@@ -62,7 +62,10 @@ async def run_decay_tick() -> int:
                 ),
             )
             updated += 1
-        except MemoryUnavailableError as exc:
-            logger.error("decay tick: memory unavailable for belief %s: %s", belief_id, exc)
+        except (MemoryUnavailableError, MemoryToolError) as exc:
+            # MemoryToolError covers the belief having been deleted between this
+            # tick's read snapshot and the write (e.g. a shopper deleted it via the
+            # Inspector mid-tick) — log and move on rather than aborting the sweep.
+            logger.error("decay tick: failed to update belief %s: %s", belief_id, exc)
 
     return updated

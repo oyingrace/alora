@@ -8,7 +8,7 @@ from app import db
 from app.core.config import get_settings
 from app.models import Episode
 from app.schemas.events import EventIn, EventOut
-from app.services import qwen
+from app.services import qwen, session_store
 from app.services.embeddings import embed_cached
 from app.services.intent import annotate_episode
 from app.services.memory_client import MemoryUnavailableError, memory_client
@@ -35,7 +35,16 @@ async def ingest_event(event: EventIn) -> EventOut:
     """Ingest one behavioral event: summarize + classify intent (qwen-turbo), embed
     the summary, and persist through the MCP `write_episode` tool — the only path to
     the episodes table (CLAUDE.md architecture rule 1).
+
+    Anonymous shoppers (event.persist=False, from the consent banner) never reach
+    Postgres at all: the raw event goes to a TTL'd Redis session log instead
+    (architecture rule 5) — skipping the qwen annotation too, since there's no
+    point spending tokens summarizing something that expires with the session.
     """
+    if not event.persist:
+        await session_store.append_event(event.session_id, event.kind, event.payload)
+        return EventOut(episode_id="", needs_clarification=False)
+
     annotation = await annotate_episode(event.kind, event.payload)
 
     embedding: list[float] | None = None

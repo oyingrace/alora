@@ -58,6 +58,15 @@ def test_cosine_similarity_zero_vector_is_zero() -> None:
     assert cosine_similarity([0.0, 0.0], [1.0, 1.0]) == 0.0
 
 
+def test_cosine_similarity_returns_plain_float_for_numpy_inputs() -> None:
+    # pgvector returns embeddings as numpy arrays; a numpy scalar result (e.g.
+    # float32) isn't JSON-serializable, which broke /recs's qwen rerank payload.
+    import numpy as np
+
+    result = cosine_similarity(np.array([1.0, 0.0], dtype=np.float32), np.array([1.0, 0.0], dtype=np.float32))
+    assert type(result) is float
+
+
 def test_recency_weight_decreases_over_time() -> None:
     assert recency_weight(0) == 1.0
     assert recency_weight(30, half_life_days=30) < recency_weight(1, half_life_days=30)

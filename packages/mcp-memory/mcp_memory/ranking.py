@@ -34,7 +34,9 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
     norm_b = math.sqrt(sum(y * y for y in b))
     if norm_a == 0 or norm_b == 0:
         return 0.0
-    return dot / (norm_a * norm_b)
+    # numpy inputs (pgvector rows) make `dot`/`norm_*` numpy scalars (e.g. float32),
+    # which json.dumps can't serialize — always return a plain Python float.
+    return float(dot / (norm_a * norm_b))
 
 
 def recency_weight(days_since_reinforced: float, half_life_days: int = 30) -> float:

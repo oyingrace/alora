@@ -46,8 +46,9 @@ Tracked against `BUILD_PLAN.md` §7. Update at the end of each phase.
 - [ ] `create_reorder_proposal` tool — deferred to Phase 4, depends on the
       `autonomy` cadence-detection logic that belongs there
 - [x] Graceful degradation: Qwen outages caught at every call site (annotation,
-      embedding, consolidation, chat) and fall back rather than 500 — `/chat`
-      returns an honest "memory offline" message; `/recs` doesn't exist yet
+      embedding, consolidation, chat, recs) and fall back rather than 500 —
+      `/chat` returns an honest "memory offline" message, `/recs` serves the
+      similarity-only ordering and reports `degraded: true`
 
 ## Phase 3 — Storefront + snippet + Inspector
 
@@ -58,8 +59,18 @@ Tracked against `BUILD_PLAN.md` §7. Update at the end of each phase.
       `POST /catalog`) — 8-product seed script (`scripts/seed_catalog.py`), real
       storefront JSON-LD wiring and qwen-vl-max tagging over real images still
       pending (needs a live storefront + QWEN_API_KEY)
-- [ ] Chat panel + recs rail + Memory Inspector UI
-- [ ] Anonymous session memory in Redis with TTL; opt-in persistence
+- [x] `/memory` endpoint (Inspector backend): GET lists every belief (including
+      decaying/deprecated) + full audit trail; PATCH corrects a belief; DELETE
+      removes one, audited distinctly as `user_delete` vs system `deprecate`
+- [x] `/recs` endpoint: `recall`-informed embedding search over the catalog,
+      reranked by qwen-turbo, hard `max_price`/`category` filters — deleting a
+      belief in the Inspector changes what the next `/recs` call returns
+- [x] Anonymous vs persistent consent handling (architecture rule 5): `/events`
+      and `/chat` take a `persist` flag from the consent banner; declining skips
+      Postgres and qwen entirely, landing in a TTL'd Redis session log instead
+      (`app/services/session_store.py`)
+- [ ] Chat panel + recs rail + Memory Inspector UI (frontend still pending —
+      backend endpoints above are ready for it)
 
 ## Phase 4 — Autonomy + benchmark
 

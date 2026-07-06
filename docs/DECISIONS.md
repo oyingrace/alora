@@ -48,3 +48,25 @@ One line per notable decision, newest last. Fuel for the blog-post writeup.
   but returns the raw response message (content + tool_calls) instead of just text,
   so the chat tool loop can drive multi-turn tool calls without a second Qwen client
   or a breaking change to `chat()`'s existing callers (intent, consolidation).
+- `MemoryClient` splits `MemoryToolError` (the MCP round-trip succeeded but the tool
+  rejected the call, e.g. "belief not found") from `MemoryUnavailableError`
+  (transport failure) — building `/memory`'s PATCH/DELETE surfaced that collapsing
+  both into one exception meant a 404 case would report as a 503.
+- `/memory`'s GET is a direct DB read (all belief statuses + full audit trail) for
+  the same reason consolidation/decay are: it's a "show me everything" shape that
+  doesn't fit `recall`'s budget-capped, active-only contract. Every write from the
+  endpoint (PATCH/DELETE) still goes through `revise_belief`/`forget`.
+- `forget`'s `action` param distinguishes `user_delete` (shopper deletes it in the
+  Inspector) from `deprecate` (system-driven, e.g. a contradiction found during
+  consolidation) — same status transition, different audit story.
+- `/recs` builds its search text from `query ∪ recalled belief statements` rather
+  than parsing a numeric budget out of belief text — beliefs are free-form natural
+  language (e.g. "budget conscious"), not structured fields, so a regex-based
+  "extract the dollar amount" would be fragile. Callers pass `max_price`/`category`
+  as explicit hard constraints instead; extracting them automatically from budget
+  beliefs is a stretch goal, not implemented.
+- Anonymous shoppers (consent banner declined) get a completely separate storage
+  path (`app/services/session_store.py`, Redis list + TTL) rather than writing to
+  Postgres and deleting later — CLAUDE.md rule 5 requires persistence to be
+  opt-in, not opt-out-after-the-fact, and skipping Qwen entirely for these events
+  also avoids paying for summarization of data that expires with the session.

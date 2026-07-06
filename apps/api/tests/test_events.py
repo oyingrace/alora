@@ -101,3 +101,58 @@ def test_qwen_unavailable_still_persists_episode(client: TestClient) -> None:
     body = response.json()
     assert body["episode_id"]
     assert body["needs_clarification"] is False
+
+
+def _read_session_events(session_id: str) -> list[dict]:
+    """Reads back the ephemeral Redis session log via a fully isolated, throwaway
+    event loop and a brand-new Redis client — never `session_store._redis`, which
+    is bound to whichever loop `client: TestClient`'s portal thread used.
+    """
+    import asyncio
+    import json
+
+    import redis.asyncio as redis
+
+    from app.core.config import get_settings
+
+    async def _do() -> list[dict]:
+        r = redis.from_url(get_settings().redis_url, decode_responses=True)
+        raw = await r.lrange(f"memora:session:{session_id}:events", 0, -1)
+        await r.aclose()
+        return [json.loads(item) for item in raw]
+
+    return asyncio.run(_do())
+
+
+def test_anonymous_event_never_touches_postgres(client: TestClient) -> None:
+    """persist=False (consent banner declined) must skip Qwen + MCP entirely and
+    land only in the ephemeral Redis session store (architecture rule 5).
+    """
+    session_id = f"session-{uuid.uuid4().hex}"
+
+    with (
+        patch("app.services.intent.qwen.chat", new=AsyncMock()) as mock_chat,
+        patch("app.services.embeddings.qwen.embed", new=AsyncMock()) as mock_embed,
+    ):
+        response = client.post(
+            "/events",
+            json={
+                "store_id": "demo",
+                "shopper_id": f"shopper-{uuid.uuid4().hex}",
+                "session_id": session_id,
+                "kind": "view",
+                "payload": {"product_id": "p1"},
+                "persist": False,
+            },
+        )
+
+    mock_chat.assert_not_awaited()
+    mock_embed.assert_not_awaited()
+    assert response.status_code == 200
+    body = response.json()
+    assert body["episode_id"] == ""
+    assert body["needs_clarification"] is False
+
+    events = _read_session_events(session_id)
+    assert len(events) == 1
+    assert events[0]["kind"] == "view"

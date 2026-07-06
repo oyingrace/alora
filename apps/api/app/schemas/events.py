@@ -11,6 +11,9 @@ class EventIn(BaseModel):
     session_id: str
     kind: EventKind
     payload: dict = Field(default_factory=dict)
+    # From the consent banner (CLAUDE.md architecture rule 5): False means the
+    # shopper stays anonymous — Redis session memory with TTL only, never Postgres.
+    persist: bool = True
 
 
 class EventOut(BaseModel):

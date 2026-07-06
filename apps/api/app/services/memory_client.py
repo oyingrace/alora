@@ -25,10 +25,18 @@ logger = logging.getLogger("memora.memory_client")
 
 
 class MemoryUnavailableError(RuntimeError):
-    """Raised when the MCP memory server can't be reached or returns an error.
+    """Raised when the MCP memory server can't be reached at all (transport failure).
 
     Callers must degrade gracefully (rule 4): /recs falls back to cached/similarity
     results, /chat returns an honest "memory offline" message — never a 500.
+    """
+
+
+class MemoryToolError(RuntimeError):
+    """Raised when the MCP round-trip succeeded but the tool itself rejected the
+    call (e.g. "belief not found") — the service is up, this specific operation
+    just failed. Distinct from MemoryUnavailableError so callers can tell "the
+    memory layer is down" (503) apart from "that belief doesn't exist" (404).
     """
 
 
@@ -66,8 +74,8 @@ class MemoryClient:
 
         if result.isError:
             message = result.content[0].text if result.content else "unknown error"
-            logger.error("mcp tool returned error: tool=%s message=%s", tool, message)
-            raise MemoryUnavailableError(message)
+            logger.warning("mcp tool rejected call: tool=%s message=%s", tool, message)
+            raise MemoryToolError(message)
 
         if result.structuredContent is not None:
             return result.structuredContent

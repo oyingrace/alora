@@ -24,7 +24,7 @@ from app.core.config import get_settings
 from app.models import Belief, Episode
 from app.models.belief import STATUS_DEPRECATED
 from app.services import qwen
-from app.services.memory_client import MemoryUnavailableError, memory_client
+from app.services.memory_client import MemoryToolError, MemoryUnavailableError, memory_client
 
 logger = logging.getLogger("memora.consolidation")
 settings = get_settings()
@@ -149,7 +149,10 @@ async def _apply_mutation(store_id: str, shopper_id: str, mutation: BeliefMutati
                 confidence=mutation.confidence,
                 evidence_episode_ids=mutation.evidence_episode_ids,
             )
-    except MemoryUnavailableError as exc:
+    except (MemoryUnavailableError, MemoryToolError) as exc:
+        # MemoryToolError covers a stale/hallucinated belief_id from the LLM (e.g. it
+        # proposed revising a belief that's since been deleted) — log and skip rather
+        # than crash the fire-and-forget consolidation task.
         logger.error(
             "failed to apply consolidation mutation action=%s belief_id=%s: %s",
             mutation.action,

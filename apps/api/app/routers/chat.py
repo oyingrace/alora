@@ -14,5 +14,6 @@ async def chat(payload: ChatIn) -> ChatOut:
         session_id=payload.session_id,
         message=payload.message,
         history=[m.model_dump() for m in payload.history],
+        persist=payload.persist,
     )
     return ChatOut(reply=reply, degraded=degraded)

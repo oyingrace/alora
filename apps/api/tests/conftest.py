@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import app.services.embeddings as embeddings_module
+import app.services.session_store as session_store_module
 from app import db as db_module
 from app.core.config import get_settings
 from app.main import app
@@ -13,9 +14,9 @@ from app.services.memory_client import memory_client
 
 @pytest.fixture(autouse=True)
 def _fresh_async_resources():
-    """Recreate the Redis client and SQLAlchemy engine for every test function.
+    """Recreate the Redis clients and SQLAlchemy engine for every test function.
 
-    Both are module-level singletons bound to whichever event loop first uses
+    All are module-level singletons bound to whichever event loop first uses
     them — fine in production (one persistent loop for the app's lifetime), but
     this test session mixes pytest-asyncio's own loop (tests that `await` worker
     functions directly) with TestClient's separate portal-thread loop (tests that
@@ -26,6 +27,9 @@ def _fresh_async_resources():
     Cheap to recreate: neither connects until first use.
     """
     embeddings_module._redis = redis.from_url(
+        get_settings().redis_url, decode_responses=True
+    )
+    session_store_module._redis = redis.from_url(
         get_settings().redis_url, decode_responses=True
     )
     db_module.engine = create_async_engine(get_settings().database_url, pool_pre_ping=True)

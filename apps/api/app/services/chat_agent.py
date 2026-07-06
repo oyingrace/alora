@@ -12,7 +12,7 @@ import logging
 
 from app.core.config import get_settings
 from app.models.episode import KIND_CHAT
-from app.services import qwen
+from app.services import qwen, session_store
 from app.services.catalog import search_products
 from app.services.embeddings import embed_cached
 from app.services.memory_client import MemoryUnavailableError, memory_client
@@ -76,7 +76,18 @@ _DEGRADED_REPLY = (
 _FALLBACK_REPLY = "Sorry, I'm having trouble putting together an answer right now."
 
 
-async def _run_recall(store_id: str, shopper_id: str, query: str) -> dict:
+async def _run_recall(
+    store_id: str, shopper_id: str, session_id: str, query: str, persist: bool
+) -> dict:
+    if not persist:
+        # Anonymous shopper: nothing's in Postgres to recall (rule 5) — the only
+        # "memory" for this turn is this browsing session's own ephemeral events.
+        events = await session_store.get_events(session_id)
+        return {
+            "beliefs": [],
+            "recent_activity": [{"kind": e["kind"], "summary": None} for e in events[-5:]],
+        }
+
     try:
         query_embedding = await embed_cached(query)
     except qwen.QwenUnavailableError:
@@ -125,7 +136,9 @@ async def _run_catalog_search(
     }
 
 
-async def _execute_tool_call(store_id: str, shopper_id: str, tool_call) -> str:
+async def _execute_tool_call(
+    store_id: str, shopper_id: str, session_id: str, persist: bool, tool_call
+) -> str:
     name = tool_call.function.name
     try:
         args = json.loads(tool_call.function.arguments or "{}")
@@ -133,7 +146,9 @@ async def _execute_tool_call(store_id: str, shopper_id: str, tool_call) -> str:
         return json.dumps({"error": f"invalid arguments for {name}"})
 
     if name == "recall":
-        result = await _run_recall(store_id, shopper_id, args.get("query", ""))
+        result = await _run_recall(
+            store_id, shopper_id, session_id, args.get("query", ""), persist
+        )
     elif name == "catalog_search":
         result = await _run_catalog_search(
             store_id, args.get("query", ""), args.get("category"), args.get("max_price")
@@ -150,6 +165,7 @@ async def run_chat(
     session_id: str,
     message: str,
     history: list[dict] | None = None,
+    persist: bool = True,
 ) -> tuple[str, bool]:
     """Returns (reply, degraded)."""
     messages: list[dict] = [{"role": "system", "content": _SYSTEM_PROMPT}]
@@ -190,7 +206,9 @@ async def run_chat(
         )
         for tc in tool_calls:
             try:
-                tool_result = await _execute_tool_call(store_id, shopper_id, tc)
+                tool_result = await _execute_tool_call(
+                    store_id, shopper_id, session_id, persist, tc
+                )
             except MemoryUnavailableError as exc:
                 logger.warning("memory unavailable during chat tool call: %s", exc)
                 tool_result = json.dumps({"error": "memory unavailable"})
@@ -201,6 +219,12 @@ async def run_chat(
     if reply is None:
         logger.warning("chat tool loop exhausted %d iterations without a final reply", MAX_TOOL_ITERATIONS)
         return _FALLBACK_REPLY, False
+
+    if not persist:
+        await session_store.append_event(
+            session_id, KIND_CHAT, {"message": message, "reply": reply}
+        )
+        return reply, False
 
     try:
         await memory_client.write_episode(

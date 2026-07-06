@@ -12,6 +12,9 @@ class ChatIn(BaseModel):
     session_id: str
     message: str
     history: list[ChatMessage] = Field(default_factory=list)
+    # From the consent banner (CLAUDE.md architecture rule 5): False means the
+    # shopper stays anonymous — Redis session memory with TTL only, never Postgres.
+    persist: bool = True
 
 
 class ChatOut(BaseModel):

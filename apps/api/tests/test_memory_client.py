@@ -1,6 +1,8 @@
+import uuid
+
 import pytest
 
-from app.services.memory_client import MemoryClient
+from app.services.memory_client import MemoryClient, MemoryToolError
 
 
 @pytest.mark.asyncio
@@ -46,5 +48,19 @@ async def test_revise_belief_create_then_forget() -> None:
 
         forgotten = await client.forget(created.belief_id, reason="test forget")
         assert forgotten.status == "deprecated"
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_forget_unknown_belief_raises_tool_error_not_unavailable() -> None:
+    """MemoryToolError (tool rejected the call) must be distinguishable from
+    MemoryUnavailableError (transport failure) — a not-found belief is the former.
+    """
+    client = MemoryClient()
+    await client.connect()
+    try:
+        with pytest.raises(MemoryToolError):
+            await client.forget(uuid.uuid4(), reason="doesn't exist")
     finally:
         await client.close()
