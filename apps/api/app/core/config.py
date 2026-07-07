@@ -1,12 +1,20 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# The one shared .env lives at the repo root (docker-compose's services also point
+# at it via `env_file: ../.env`). pydantic-settings resolves a relative env_file
+# against the current working directory, not this file's location — and both
+# `make dev` and running scripts by hand commonly `cd apps/api` first — so this
+# must be an absolute path or it silently finds nothing and falls back to defaults.
+_REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 class Settings(BaseSettings):
     """All config from environment. Never hardcode model names or secrets elsewhere."""
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_REPO_ROOT / ".env", extra="ignore")
 
     # Qwen Cloud
     qwen_api_key: str = ""
