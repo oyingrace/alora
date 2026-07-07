@@ -9,7 +9,7 @@ import logging
 
 from app.core.config import get_settings
 from app.models.autonomy import ACTION_REORDER, LEVEL_AUTO_NOTIFY
-from app.models.episode import KIND_CHAT
+from app.models.episode import KIND_CHAT, KIND_SEARCH
 from app.services import qwen, session_store
 from app.services.autonomy import execute_auto_reorder, get_autonomy_status
 from app.services.catalog import search_products
@@ -96,6 +96,23 @@ _DEGRADED_REPLY = (
 _FALLBACK_REPLY = "Sorry, I'm having trouble putting together an answer right now."
 
 
+def _summarize_anonymous_event(kind: str, payload: dict) -> str | None:
+    """Best-effort, LLM-free summary of this session's own ephemeral event. No
+    privacy concern surfacing it back to the same session's own recall call — it
+    never leaves Redis or outlives the session either way (rule 5) — this just
+    avoids spending a Qwen call annotating data that's about to expire anyway.
+    """
+    if kind == KIND_CHAT and "message" in payload:
+        return f"asked: {payload['message']}"
+    if kind == KIND_SEARCH and "query" in payload:
+        return f"searched: {payload['query']}"
+    if "product_id" in payload:
+        return f"{kind} on product {payload['product_id']}"
+    if "path" in payload:
+        return f"{kind} at {payload['path']}"
+    return None
+
+
 async def _run_recall(
     store_id: str, shopper_id: str, session_id: str, query: str, persist: bool
 ) -> dict:
@@ -105,7 +122,13 @@ async def _run_recall(
         events = await session_store.get_events(session_id)
         return {
             "beliefs": [],
-            "recent_activity": [{"kind": e["kind"], "summary": None} for e in events[-5:]],
+            "recent_activity": [
+                {
+                    "kind": e["kind"],
+                    "summary": _summarize_anonymous_event(e["kind"], e.get("payload", {})),
+                }
+                for e in events[-5:]
+            ],
         }
 
     try:

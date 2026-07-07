@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.services import session_store
-from app.services.chat_agent import run_chat
+from app.services.chat_agent import _run_recall, run_chat
 
 
 @pytest.mark.asyncio
@@ -75,3 +75,28 @@ async def test_chat_anonymous_session_skips_mcp_and_uses_session_store(
     events = await session_store.get_events(session_id)
     assert len(events) == 1
     assert events[0]["kind"] == "chat"
+
+
+@pytest.mark.asyncio
+async def test_anonymous_recall_surfaces_this_session_own_chat_content() -> None:
+    """The recall tool must be able to answer "did I already ask about X" within
+    a single anonymous session — it's the session's own ephemeral data, so there's
+    no privacy reason to hide it, unlike a real cross-session persisted belief.
+    """
+    session_id = f"session-{uuid.uuid4().hex}"
+    await session_store.append_event(
+        session_id, "chat", {"message": "how much are the canvas sneakers?", "reply": "$32"}
+    )
+
+    result = await _run_recall(
+        store_id="demo",
+        shopper_id="anon",
+        session_id=session_id,
+        query="sneakers",
+        persist=False,
+    )
+
+    assert result["beliefs"] == []
+    assert result["recent_activity"] == [
+        {"kind": "chat", "summary": "asked: how much are the canvas sneakers?"}
+    ]
